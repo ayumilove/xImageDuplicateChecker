@@ -8,7 +8,7 @@
 
 如果您发现了 bug 或有功能建议，请：
 
-1. 检查 [Issues](https://github.com/yourusername/xImageDuplicateChecker/issues) 确认问题尚未被报告
+1. 检查 [Issues](https://github.com/ayumilove/xImageDuplicateChecker/issues) 确认问题尚未被报告
 2. 创建新的 Issue，详细描述问题或建议
 3. 提供复现步骤（如果是 bug）
 
@@ -31,7 +31,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/xImageDuplicateChecker.git
+git clone https://github.com/ayumilove/xImageDuplicateChecker.git
 cd xImageDuplicateChecker
 
 # 创建虚拟环境

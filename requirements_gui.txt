@@ -1,0 +1,8 @@
+# GUI相关依赖
+ttkbootstrap>=1.10.1
+Pillow>=9.0.0
+
+# 如果需要安装ttkbootstrap，请运行：
+# pip install ttkbootstrap
+
+# 注意：如果没有安装ttkbootstrap，程序会自动回退到标准tkinter界面

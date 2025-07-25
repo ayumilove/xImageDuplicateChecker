@@ -19,7 +19,7 @@ setup(
     description="一个高效的Python图像查重工具",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/xImageDuplicateChecker",
+    url="https://github.com/ayumilove/xImageDuplicateChecker",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
