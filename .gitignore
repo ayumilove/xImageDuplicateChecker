@@ -173,6 +173,19 @@ results/*
 *.dng
 !README_images/
 
+# Video files
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.mkv
+*.webm
+*.m4v
+*.3gp
+*.mpg
+*.mpeg
+
 # Temporary files
 *.tmp
 *.temp
