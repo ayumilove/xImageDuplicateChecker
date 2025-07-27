@@ -20,12 +20,27 @@ from .hash_utils import (
 )
 from .result_logger import ResultLogger
 
-__all__ = [
-    "DuplicateChecker",
-    "calculate_file_hash",
-    "calculate_dhash",
-    "calculate_phash",
-    "calculate_ahash",
-    "is_pure_color_image",
-    "ResultLogger"
-]
+# 导入C++实现的查重器
+try:
+    from ..cpp_hash_lib.cpp_duplicate_checker import CppDuplicateChecker
+    __all__ = [
+        "DuplicateChecker",
+        "CppDuplicateChecker",  # C++实现版本
+        "calculate_file_hash",
+        "calculate_dhash",
+        "calculate_phash",
+        "calculate_ahash",
+        "is_pure_color_image",
+        "ResultLogger"
+    ]
+except ImportError:
+    # 如果C++库不可用，只导出Python版本
+    __all__ = [
+        "DuplicateChecker",
+        "calculate_file_hash",
+        "calculate_dhash",
+        "calculate_phash",
+        "calculate_ahash",
+        "is_pure_color_image",
+        "ResultLogger"
+    ]

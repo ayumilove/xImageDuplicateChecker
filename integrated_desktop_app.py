@@ -28,7 +28,7 @@ import platform
 import queue
 import time
 import webbrowser
-from src.duplicate_checker import DuplicateChecker
+from cpp_hash_lib.cpp_duplicate_checker import CppDuplicateChecker
 from i18n import I18n
 
 # 初始化多语言支持
@@ -217,15 +217,15 @@ MIT License
         row2.pack(fill=tk.X, pady=(0, 5))
         
         ttk.Label(row2, text=_("dhash_threshold")).pack(side=tk.LEFT, padx=(0, 5))
-        self.dhash_var = tk.IntVar(value=8)
+        self.dhash_var = tk.IntVar(value=12)
         ttk.Spinbox(row2, from_=1, to=20, width=5, textvariable=self.dhash_var).pack(side=tk.LEFT, padx=(0, 20))
         
         ttk.Label(row2, text=_("phash_threshold")).pack(side=tk.LEFT, padx=(0, 5))
-        self.phash_var = tk.IntVar(value=2)
+        self.phash_var = tk.IntVar(value=8)
         ttk.Spinbox(row2, from_=1, to=20, width=5, textvariable=self.phash_var).pack(side=tk.LEFT, padx=(0, 20))
         
         ttk.Label(row2, text=_("ahash_threshold")).pack(side=tk.LEFT, padx=(0, 5))
-        self.ahash_var = tk.IntVar(value=2)
+        self.ahash_var = tk.IntVar(value=8)
         ttk.Spinbox(row2, from_=1, to=20, width=5, textvariable=self.ahash_var).pack(side=tk.LEFT)
         
         # 第三行参数
@@ -233,10 +233,24 @@ MIT License
         row3.pack(fill=tk.X, pady=(0, 5))
         
         ttk.Label(row3, text=_("detect_rotation")).pack(side=tk.LEFT, padx=(0, 5))
-        self.detect_rotation_var = tk.BooleanVar(value=False)
+        self.detect_rotation_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(row3, variable=self.detect_rotation_var).pack(side=tk.LEFT, padx=(0, 10))
         
         ttk.Label(row3, text=_("rotation_note"), font=('Arial', 8), foreground='#6c757d').pack(side=tk.LEFT)
+        
+        # 第四行参数 - 增强相似度检测
+        row4 = ttk.Frame(params_frame)
+        row4.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Label(row4, text="增强相似度检测").pack(side=tk.LEFT, padx=(0, 5))
+        self.enhanced_similarity_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(row4, variable=self.enhanced_similarity_var).pack(side=tk.LEFT, padx=(0, 10))
+        
+        ttk.Label(row4, text="支持旋转+分辨率变化检测", font=('Arial', 8), foreground='#6c757d').pack(side=tk.LEFT, padx=(0, 20))
+        
+        ttk.Label(row4, text="置信度阈值").pack(side=tk.LEFT, padx=(0, 5))
+        self.confidence_var = tk.DoubleVar(value=0.6)
+        ttk.Spinbox(row4, from_=0.1, to=1.0, increment=0.1, width=5, textvariable=self.confidence_var, format="%.1f").pack(side=tk.LEFT)
         
         # 控制按钮区域
         control_frame = ttk.Frame(main_frame)
@@ -405,45 +419,117 @@ MIT License
         
     def scan_thread(self):
         """扫描线程"""
+        self.should_stop = False  # 重置停止标志
         try:
             self.log_message(f"{_('start_scanning_dir')}: {self.scan_directory}")
             
-            # 创建查重器，并设置实时日志回调
-            self.checker = DuplicateChecker(
-                phash_threshold=self.phash_var.get(),
-                dhash_threshold=self.dhash_var.get(),
-                ahash_threshold=self.ahash_var.get(),
-                output_dir="results",
-                detect_pure_color=self.pure_color_var.get(),
-                detect_rotation=self.detect_rotation_var.get()
-            )
-            
-            # 设置实时日志回调
-            self.checker.set_log_callback(self.real_time_log)
-            
+            # 首先测试C++库是否可用
+            cpp_available = False
             try:
-                # 执行查重
+                from cpp_hash_lib.hash_wrapper import get_hash_lib
+                test_lib = get_hash_lib()
+                # 简单测试C++库功能
+                test_result = test_lib.hamming_distance("abcd", "abcd")
+                if test_result == 0:
+                    cpp_available = True
+                    self.log_message("C++库测试成功，开始使用C++实现")
+                else:
+                    self.log_message("C++库测试失败，回退到Python实现")
+            except Exception as e:
+                self.log_message(f"C++库不可用，回退到Python实现: {str(e)}")
+            
+            if not cpp_available:
+                # 回退到Python实现
+                from src.duplicate_checker import DuplicateChecker
+                self.checker = DuplicateChecker(
+                    phash_threshold=self.phash_var.get(),
+                    dhash_threshold=self.dhash_var.get(),
+                    ahash_threshold=self.ahash_var.get(),
+                    output_dir="results",
+                    detect_pure_color=self.pure_color_var.get(),
+                    detect_rotation=self.detect_rotation_var.get()
+                )
+                self.checker.set_log_callback(self.real_time_log)
                 stats = self.checker.check_duplicates(
                     self.scan_directory, 
                     self.recursive_var.get()
                 )
+                self._handle_scan_success(stats)
+                return
+            
+            # 创建查重器，并设置实时日志回调（使用C++哈希库）
+            try:
+                self.checker = CppDuplicateChecker(
+                    phash_threshold=self.phash_var.get(),
+                    dhash_threshold=self.dhash_var.get(),
+                    ahash_threshold=self.ahash_var.get(),
+                    output_dir="results",
+                    detect_pure_color=self.pure_color_var.get(),
+                    detect_rotation=self.detect_rotation_var.get(),
+                    enhanced_similarity=self.enhanced_similarity_var.get(),
+                    confidence_threshold=self.confidence_var.get()
+                )
                 
-                self.log_message(f"\n{_('scan_completed')}")
-                self.log_message(f"{_('total_images')}: {stats.get('total_images', 0)}")
-                self.log_message(f"{_('duplicate_groups')}: {stats.get('duplicate_groups', 0)}")
-                self.log_message(f"{_('duplicate_images')}: {stats.get('duplicate_images', 0)}")
+                # 设置实时日志回调
+                self.checker.set_log_callback(self.real_time_log)
                 
-                # 自动加载结果
-                self.root.after(0, self.load_latest_result)
+                # 执行查重
+                self.log_message("开始使用C++库进行图片查重...")
+                stats = self.checker.check_duplicates(
+                    self.scan_directory, 
+                    self.recursive_var.get()
+                )
+                self._handle_scan_success(stats)
                 
             except Exception as e:
-                self.log_message(f"{_('scan_error')}: {str(e)}")
+                error_msg = str(e)
+                self.log_message(f"C++实现出错: {error_msg}")
+                
+                # 检查是否是用户主动停止
+                if self.should_stop or "扫描已停止" in error_msg:
+                    self.log_message("用户已停止扫描")
+                    return
+                
+                self.log_message("尝试回退到Python实现...")
+                # 回退到Python实现
+                try:
+                    from src.duplicate_checker import DuplicateChecker
+                    self.checker = DuplicateChecker(
+                        phash_threshold=self.phash_var.get(),
+                        dhash_threshold=self.dhash_var.get(),
+                        ahash_threshold=self.ahash_var.get(),
+                        output_dir="results",
+                        detect_pure_color=self.pure_color_var.get(),
+                        detect_rotation=self.detect_rotation_var.get()
+                    )
+                    self.checker.set_log_callback(self.real_time_log)
+                    self.log_message("开始使用Python实现进行图片查重...")
+                    stats = self.checker.check_duplicates(
+                        self.scan_directory, 
+                        self.recursive_var.get()
+                    )
+                    self._handle_scan_success(stats)
+                except Exception as fallback_e:
+                    self.log_message(f"Python实现也失败: {str(fallback_e)}")
+                    raise fallback_e
                 
         except Exception as e:
             self.log_message(f"{_('scan_failed')}: {str(e)}")
+            import traceback
+            self.log_message(f"详细错误信息: {traceback.format_exc()}")
         finally:
             # 恢复UI状态
             self.root.after(0, self.scan_finished)
+    
+    def _handle_scan_success(self, stats):
+        """处理扫描成功的结果"""
+        self.log_message(f"\n{_('scan_completed')}")
+        self.log_message(f"{_('total_images')}: {stats.get('total_images', 0)}")
+        self.log_message(f"{_('duplicate_groups')}: {stats.get('duplicate_groups', 0)}")
+        self.log_message(f"{_('duplicate_images')}: {stats.get('duplicate_images', 0)}")
+        
+        # 自动加载结果
+        self.root.after(0, self.load_latest_result)
             
     def real_time_log(self, message):
         """实时日志回调函数"""
@@ -461,9 +547,22 @@ MIT License
     def stop_scan(self):
         """停止扫描"""
         self.is_scanning = False
-        self.log_message(_("user_stop_scan"))
-        self.update_status(_("scan_stopped"), "warning")
-        self.scan_finished()
+        self.should_stop = True  # 设置停止标志
+        self.log_message(_('user_stop_scan'))
+        
+        # 尝试停止checker
+        if hasattr(self, 'checker') and self.checker:
+            try:
+                # 如果checker有停止方法，调用它
+                if hasattr(self.checker, 'stop'):
+                    self.checker.stop()
+                    self.log_message("已向扫描器发送停止信号")
+            except Exception as e:
+                self.log_message(f"停止扫描器时出错: {str(e)}")
+        
+        self.update_status(_('scan_stopped'), "warning")
+        # 延迟一点时间再调用scan_finished，给停止操作一些时间
+        self.root.after(1000, self.scan_finished)
         
     def load_latest_result(self):
         """加载最新的扫描结果"""

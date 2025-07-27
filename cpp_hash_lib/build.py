@@ -251,9 +251,9 @@ def build_library():
     build_dir = current_dir / 'build'
     
     # 创建构建目录
-    if build_dir.exists():
-        print("清理旧的构建目录...")
-        shutil.rmtree(build_dir)
+    # if build_dir.exists():
+    #     print("清理旧的构建目录...")
+    #     shutil.rmtree(build_dir)
     
     build_dir.mkdir(exist_ok=True)
     

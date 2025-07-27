@@ -149,6 +149,19 @@ Desktop.ini
 test_images/*
 test_results/*
 results/*
+release/
+
+# Compiled binaries and DLLs
+*.dll
+*.exe
+*.so
+*.dylib
+
+# OpenCV DLLs
+opencv_*.dll
+
+# Build artifacts
+hash_algorithms.dll
 
 # 但保留目录结构（如果需要的话）
 !test_images/.gitkeep

@@ -10,7 +10,7 @@ import argparse
 import os
 import sys
 
-from src.duplicate_checker import DuplicateChecker
+from cpp_hash_lib.cpp_duplicate_checker import CppDuplicateChecker
 
 
 def parse_args():
@@ -81,7 +81,7 @@ def main():
         return 1
     
     # 创建查重器
-    checker = DuplicateChecker(
+    checker = CppDuplicateChecker(
         phash_threshold=args.phash_threshold,
         dhash_threshold=args.dhash_threshold,
         ahash_threshold=args.ahash_threshold,
