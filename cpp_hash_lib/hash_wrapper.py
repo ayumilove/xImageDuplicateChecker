@@ -64,6 +64,7 @@ class HashLibraryWrapper:
         
         try:
             self.lib = ctypes.CDLL(lib_path)
+            print(f"[C++库] 成功加载动态库: {lib_path}")
         except OSError as e:
             raise RuntimeError(f"无法加载动态库 {lib_path}: {e}")
     
@@ -98,6 +99,10 @@ class HashLibraryWrapper:
         # free_string_c
         self.lib.free_string_c.argtypes = [ctypes.c_void_p]
         self.lib.free_string_c.restype = None
+        
+        # get_library_version_c
+        self.lib.get_library_version_c.argtypes = []
+        self.lib.get_library_version_c.restype = ctypes.c_void_p
     
     def _call_and_free(self, func, *args):
         """
@@ -110,14 +115,50 @@ class HashLibraryWrapper:
         Returns:
             解码后的字符串
         """
-        result_ptr = func(*args)
-        if result_ptr:
-            try:
-                result = ctypes.string_at(result_ptr).decode('utf-8')
-                return result
-            finally:
-                self.lib.free_string_c(result_ptr)
-        return None
+        try:
+            result_ptr = func(*args)
+            
+            # 检查返回值类型和有效性
+            if result_ptr is None or result_ptr == 0:
+                return "ERROR: C function returned null pointer"
+            
+            # 确保result_ptr是一个有效的指针而不是整数错误码
+            if isinstance(result_ptr, int):
+                # 检查是否是错误码（通常负数或特定值表示错误）
+                if result_ptr < 0 or result_ptr < 1000:  # 假设有效指针地址应该大于1000
+                    return f"ERROR: C function returned error code {result_ptr}"
+                
+                # 如果是有效指针，继续处理
+                try:
+                    # 尝试从指针读取字符串
+                    result = ctypes.string_at(result_ptr).decode('utf-8')
+                    return result
+                except Exception as e:
+                    # 如果解码失败，返回错误信息
+                    return f"ERROR: Failed to decode result - {str(e)} (ptr={result_ptr})"
+                finally:
+                    try:
+                        # 只有当result_ptr看起来像有效指针时才尝试释放
+                        if result_ptr > 1000:
+                            self.lib.free_string_c(result_ptr)
+                    except:
+                        pass  # 忽略释放内存时的错误
+            else:
+                # 如果不是整数，可能是其他类型的指针
+                try:
+                    result = ctypes.string_at(result_ptr).decode('utf-8')
+                    return result
+                except Exception as e:
+                    return f"ERROR: Failed to decode non-int result - {str(e)} (ptr={result_ptr})"
+                finally:
+                    try:
+                        self.lib.free_string_c(result_ptr)
+                    except:
+                        pass
+                    
+        except Exception as e:
+            # 如果调用C函数失败，返回错误信息
+            return f"ERROR: C function call failed - {str(e)}"
     
     def calculate_dhash(self, image_path: str, hash_size: int = 8) -> str:
         """
@@ -194,24 +235,53 @@ class HashLibraryWrapper:
         
         return result
     
-    def calculate_file_hash(self, file_path: str) -> str:
+    def calculate_file_hash(self, file_path: str, timeout: float = 30.0) -> str:
         """
-        计算文件的MD5哈希值
+        计算文件的哈希值（带超时检测）
         
         Args:
             file_path: 文件路径
+            timeout: 超时时间（秒），默认30秒
             
         Returns:
             文件的MD5哈希值
         """
+        import threading
+        import time
+        
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"文件不存在: {file_path}")
         
-        result = self._call_and_free(
-            self.lib.calculate_file_hash_c,
-            file_path.encode('utf-8')
-        )
+        result_container = {'result': None, 'error': None, 'completed': False}
         
+        def calculate_hash():
+            try:
+                result = self._call_and_free(
+                    self.lib.calculate_file_hash_c,
+                    file_path.encode('utf-8')
+                )
+                result_container['result'] = result
+                result_container['completed'] = True
+            except Exception as e:
+                result_container['error'] = e
+                result_container['completed'] = True
+        
+        # 启动计算线程
+        calc_thread = threading.Thread(target=calculate_hash)
+        calc_thread.daemon = True
+        calc_thread.start()
+        
+        # 等待结果或超时
+        calc_thread.join(timeout)
+        
+        if not result_container['completed']:
+            # 超时了
+            raise TimeoutError(f"文件哈希计算超时 ({timeout}秒): {os.path.basename(file_path)}")
+        
+        if result_container['error']:
+            raise result_container['error']
+        
+        result = result_container['result']
         if result and result.startswith("ERROR:"):
             raise ValueError(result)
         
@@ -261,22 +331,39 @@ class HashLibraryWrapper:
             raise ValueError(f"无法处理图片: {image_path}")
         
         return result == 1
+    
+    def get_version(self) -> str:
+        """
+        获取C++库的版本信息
+        
+        Returns:
+            版本信息字符串
+        """
+        result = self._call_and_free(self.lib.get_library_version_c)
+        return result if result else "未知版本"
 
 
-# 全局实例
+# 线程安全的全局实例
+import threading
 _hash_lib_instance = None
+_hash_lib_lock = threading.Lock()
 
 
 def get_hash_lib():
     """
-    获取哈希库实例（单例模式）
+    获取哈希库实例（线程安全的单例模式）
     
     Returns:
         HashLibraryWrapper实例
     """
     global _hash_lib_instance
     if _hash_lib_instance is None:
-        _hash_lib_instance = HashLibraryWrapper()
+        with _hash_lib_lock:
+            # 双重检查锁定模式
+            if _hash_lib_instance is None:
+                print("正在初始化C++哈希库...")
+                _hash_lib_instance = HashLibraryWrapper()
+                print(f"C++哈希库初始化完成，版本: {_hash_lib_instance.get_version()}")
     return _hash_lib_instance
 
 
@@ -296,9 +383,9 @@ def calculate_ahash(image_path: str, hash_size: int = 8) -> str:
     return get_hash_lib().calculate_ahash(image_path, hash_size)
 
 
-def calculate_file_hash(file_path: str) -> str:
+def calculate_file_hash(file_path: str, timeout: float = 30.0) -> str:
     """计算文件的MD5哈希值"""
-    return get_hash_lib().calculate_file_hash(file_path)
+    return get_hash_lib().calculate_file_hash(file_path, timeout)
 
 
 def hamming_distance(hash1: str, hash2: str) -> int:

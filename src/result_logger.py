@@ -55,12 +55,15 @@ class ResultLogger:
         
         filepath = os.path.join(self.output_dir, filename)
         
+        # 正在保存CSV结果
+        
         with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
             fieldnames = ['group_id', 'duplicate_reason', 'file_path']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             
             writer.writeheader()
             
+            total_files = 0
             for group_id, group in enumerate(duplicate_groups, 1):
                 reason = group.get('reason', '未知')
                 files = group.get('files', [])
@@ -71,7 +74,11 @@ class ResultLogger:
                         'duplicate_reason': reason,
                         'file_path': file_path
                     })
+                    total_files += 1
+                
+                # CSV处理进度更新
         
+        # CSV文件保存完成
         return filepath
     
     def save_to_json(self, duplicate_groups: List[Dict[str, Any]], filename: Optional[str] = None) -> str:
@@ -90,16 +97,42 @@ class ResultLogger:
         
         filepath = os.path.join(self.output_dir, filename)
         
+        # 正在保存JSON结果
+        
         # 为每个组添加组ID
         result = []
         for group_id, group in enumerate(duplicate_groups, 1):
             group_with_id = group.copy()
             group_with_id['group_id'] = group_id
             result.append(group_with_id)
+            
+            # JSON处理进度更新
         
+        # 正在写入JSON文件
+        # 使用流式写入优化大文件性能
         with open(filepath, 'w', encoding='utf-8') as jsonfile:
-            json.dump(result, jsonfile, ensure_ascii=False, indent=2)
+            jsonfile.write('[\n')
+            
+            for i, group_data in enumerate(result):
+                if i > 0:
+                    jsonfile.write(',\n')
+                
+                # 写入单个组的JSON数据
+                group_json = json.dumps(group_data, ensure_ascii=False, indent=2)
+                # 为每行添加适当的缩进
+                indented_lines = []
+                for line in group_json.split('\n'):
+                    if line.strip():
+                        indented_lines.append('  ' + line)
+                    else:
+                        indented_lines.append('')
+                jsonfile.write('\n'.join(indented_lines))
+                
+                # JSON写入进度更新
+            
+            jsonfile.write('\n]')
         
+        # JSON文件保存完成
         return filepath
     
     def save_summary(self, stats: Dict[str, Any], filename: Optional[str] = None) -> str:

@@ -150,6 +150,28 @@ test_images/*
 test_results/*
 results/*
 release/
+progress/*
+temp/*
+output/*
+logs/*
+
+# 敏感文件和配置
+*.ini
+*.cfg
+*.conf
+!setup.cfg
+
+# 本地测试和调试文件
+test_*.py
+debug_*.py
+*_test.py
+*_debug.py
+
+# 个人配置和缓存
+.vscode/settings.json
+.idea/workspace.xml
+*.user
+*.suo
 
 # Compiled binaries and DLLs
 *.dll

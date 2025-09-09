@@ -86,7 +86,12 @@ def main():
         dhash_threshold=args.dhash_threshold,
         ahash_threshold=args.ahash_threshold,
         output_dir=args.output,
-        detect_pure_color=not args.no_pure_color_detection
+        detect_pure_color=not args.no_pure_color_detection,
+        enable_resume=True,
+        enable_optimization=True,
+        optimization_threshold=1000,
+        enable_ultra_fast=True,
+        ultra_fast_threshold=50000
     )
     
     # 执行查重

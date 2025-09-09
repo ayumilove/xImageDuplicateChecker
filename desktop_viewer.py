@@ -252,7 +252,7 @@ class DuplicateImageViewer:
         # 查找当前文件的距离信息
         distance_info = None
         for file_info in group['files_with_distances']:
-            if file_info['path'] == file_path:
+            if file_info['file_path'] == file_path:
                 distance_info = file_info
                 break
                 

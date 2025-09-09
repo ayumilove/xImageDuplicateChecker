@@ -260,7 +260,7 @@ def batch_compare_with_rotation(image_paths: List[str],
             continue
         
         current_group = [{
-            'path': image1_path,
+            'file_path': image1_path,
             'rotation_angle': 0,
             'similar_reason': 'original'
         }]
@@ -284,7 +284,7 @@ def batch_compare_with_rotation(image_paths: List[str],
                 
                 if is_similar:
                     current_group.append({
-                        'path': image2_path,
+                        'file_path': image2_path,
                         'rotation_angle': match_info.get('rotation_angle', 0),
                         'similar_reason': ', '.join(match_info.get('similar_algorithms', [])),
                         'distances': match_info.get('distances', {})

@@ -709,8 +709,6 @@ def batch_compare_with_enhanced_similarity(image_files: List[str],
     def log(message):
         if log_callback:
             log_callback(message)
-        else:
-            print(message)
     
     total_files = len(image_files)
     total_comparisons = (total_files * (total_files - 1)) // 2

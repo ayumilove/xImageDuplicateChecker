@@ -165,7 +165,7 @@ similar_groups = batch_compare_with_rotation(image_paths)
 for i, group in enumerate(similar_groups):
     print(f"相似组 {i+1}:")
     for item in group:
-        print(f"  {item['path']} (旋转: {item['rotation_angle']}度)")
+        print(f"  {item['file_path']} (旋转: {item['rotation_angle']}度)")
 ```
 
 ### 替换原有代码

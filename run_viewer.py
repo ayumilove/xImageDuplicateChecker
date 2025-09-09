@@ -26,24 +26,24 @@ def main():
             choice = input("请输入选择 (1-3): ").strip()
             
             if choice == '1':
-                print("\n启动控制台版查看器...")
+                # 启动控制台版查看器
                 try:
                     import console_viewer
                     console_viewer.main()
                 except Exception as e:
-                    print(f"启动控制台版失败: {e}")
+                    pass  # 启动错误
                 break
                 
             elif choice == '2':
-                print("\n启动桌面版查看器...")
+                # 启动桌面版查看器
                 try:
                     import desktop_viewer
                     desktop_viewer.main()
                 except ImportError as e:
-                    print(f"错误: 缺少依赖库 - {e}")
+                    pass  # 启动错误
                     print("请运行: pip install -r requirements.txt")
                 except Exception as e:
-                    print(f"启动桌面版失败: {e}")
+                    pass  # 启动错误
                 break
                 
             elif choice == '3':

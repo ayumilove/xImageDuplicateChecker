@@ -124,10 +124,110 @@ python main.py ./images -r -o ./my_results
 - TIFF (.tiff, .tif)
 - WebP (.webp)
 
+## 编译说明
+
+### C++ DLL库编译
+
+本项目包含高性能的C++哈希算法库，可选择编译以获得更好的性能。
+
+#### 系统要求
+- **CMake** (>= 3.12)
+- **C++编译器** (支持C++17)
+  - Windows: Visual Studio 2019+ 或 MinGW
+  - Linux: GCC 7+ 或 Clang 6+
+- **OpenCV** (>= 4.0)
+- **OpenSSL** (用于MD5计算)
+
+#### 编译步骤
+
+**方法一：自动构建（推荐）**
+
+```bash
+# 进入C++库目录
+cd cpp_hash_lib
+
+# 运行自动构建脚本
+python build.py
+```
+
+**方法二：手动构建**
+
+```bash
+# 进入C++库目录
+cd cpp_hash_lib
+
+# 创建构建目录
+mkdir build
+cd build
+
+# 配置CMake
+cmake ..
+
+# 编译
+cmake --build . --config Release
+```
+
+#### Windows特殊说明
+
+如果使用vcpkg管理依赖：
+
+```bash
+# 安装依赖
+vcpkg install opencv4 openssl
+
+# 使用vcpkg工具链编译
+cmake .. -DCMAKE_TOOLCHAIN_FILE=[vcpkg根目录]/scripts/buildsystems/vcpkg.cmake
+```
+
+### 桌面应用程序编译
+
+可以将Python应用程序打包为独立的可执行文件。
+
+#### 系统要求
+- Python 3.8+
+- PyInstaller
+- 所有项目依赖库
+
+#### 编译步骤
+
+**自动打包（推荐）**
+
+```bash
+# 运行打包脚本
+python build_exe.py
+```
+
+**手动打包**
+
+```bash
+# 安装PyInstaller
+pip install pyinstaller
+
+# 打包主应用程序
+pyinstaller --onefile --windowed integrated_desktop_app.py
+
+# 或打包控制台版本
+pyinstaller --onefile main.py
+```
+
+#### 打包说明
+
+- 打包后的文件位于 `dist/` 目录
+- 自动包含所需的DLL文件和资源
+- 支持Windows、macOS和Linux平台
+- 生成的exe文件可独立运行，无需安装Python环境
+
+#### 分发注意事项
+
+1. **C++库依赖**：如果编译了C++库，确保相关DLL文件包含在分发包中
+2. **系统依赖**：某些系统可能需要安装Visual C++ Redistributable
+3. **文件大小**：完整打包的应用程序约100-200MB
+
 ## 系统要求
 
 - Python 3.8 或更高版本
 - 支持 Windows、macOS 和 Linux
+- 可选：C++编译环境（用于高性能库）
 
 ## 许可证
 

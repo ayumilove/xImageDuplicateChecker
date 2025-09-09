@@ -33,7 +33,9 @@ class DuplicateChecker:
                  ahash_threshold: int = 2,  # 大幅降低aHash阈值至2，减少误判
                  output_dir: str = "results",
                  detect_pure_color: bool = True,
-                 detect_rotation: bool = False):
+                 detect_rotation: bool = False,
+                 enable_exact_match: bool = True,
+                 enable_perceptual_hash: bool = True):
         """
         初始化图片查重器
         
@@ -44,13 +46,20 @@ class DuplicateChecker:
             output_dir: 结果输出目录，默认为"results"
             detect_pure_color: 是否检测并标记纯色图片，默认为True
             detect_rotation: 是否启用旋转识别功能，默认为False
+            enable_exact_match: 是否启用完全一致检测，默认为True
+            enable_perceptual_hash: 是否启用感知哈希检测，默认为True
         """
         self.phash_threshold = phash_threshold
         self.dhash_threshold = dhash_threshold
         self.ahash_threshold = ahash_threshold
         self.detect_pure_color = detect_pure_color
         self.detect_rotation = detect_rotation
+        self.enable_exact_match = enable_exact_match
+        self.enable_perceptual_hash = enable_perceptual_hash
         self.logger = ResultLogger(output_dir)
+        
+        # 输出检测方式设置（调试信息）
+        print(f"[DEBUG] Python DuplicateChecker初始化: enable_exact_match={enable_exact_match}, enable_perceptual_hash={enable_perceptual_hash}")
         
         # 日志回调函数
         self.log_callback = None
@@ -63,10 +72,12 @@ class DuplicateChecker:
         # 统计信息
         self.stats = {
             'total_images': 0,
+            'processed_images': 0,
             'duplicate_groups': 0,
             'duplicate_images': 0,
             'pure_color_images': 0,
-            'reasons': defaultdict(int)
+            'reasons': defaultdict(int),
+            'file_status': defaultdict(int)
         }
     
     def set_log_callback(self, callback):
@@ -87,8 +98,6 @@ class DuplicateChecker:
         """
         if self.log_callback:
             self.log_callback(message)
-        else:
-            print(message)
     
     def scan_directory(self, directory: str, recursive: bool = True) -> List[str]:
         """
@@ -235,10 +244,12 @@ class DuplicateChecker:
                 ahash = calculate_ahash(file_path)
                 
                 file_hashes.append({
-                    'path': file_path,
+                    'file_path': file_path,  # 改为 file_path 避免旧格式警告
                     'dhash': dhash,
                     'phash': phash,
-                    'ahash': ahash
+                    'ahash': ahash,
+                    'size': os.path.getsize(file_path),
+                    'mtime': os.path.getmtime(file_path)
                 })
             except Exception as e:
                 self.log(f"计算感知哈希时出错: {file_path}, 错误: {str(e)}")
@@ -249,7 +260,7 @@ class DuplicateChecker:
         
         self.log("正在查找相似图片组...")
         for i, file1 in enumerate(file_hashes):
-            if file1['path'] in processed:
+            if file1['file_path'] in processed:
                 continue
             
             if i % 100 == 0 and i > 0:
@@ -259,7 +270,7 @@ class DuplicateChecker:
             reason = ""
             
             for file2 in file_hashes:
-                if file1['path'] == file2['path'] or file2['path'] in processed:
+                if file1['file_path'] == file2['file_path'] or file2['file_path'] in processed:
                     continue
                 
                 # 计算dhash距离
@@ -282,7 +293,7 @@ class DuplicateChecker:
                 # 至少需要两种算法都判断为相似才认为是重复
                 if similar_count >= 2:
                     similar_files.append({
-                        'path': file2['path'],
+                        'file_path': file2['file_path'],
                         'dhash_distance': dhash_distance,
                         'phash_distance': phash_distance,
                         'ahash_distance': ahash_distance
@@ -300,7 +311,7 @@ class DuplicateChecker:
             if similar_files:
                 # 构建文件列表，包含哈希距离信息
                 files_with_distances = [{
-                    'path': file1['path'],
+                    'file_path': file1['file_path'],
                     'dhash_distance': 0,  # 基准文件距离为0
                     'phash_distance': 0,
                     'ahash_distance': 0
@@ -309,15 +320,15 @@ class DuplicateChecker:
                 
                 similar_group = {
                     'reason': reason,
-                    'files': [item['path'] for item in files_with_distances],  # 保持向后兼容
+                    'files': [item['file_path'] for item in files_with_distances],  # 保持向后兼容
                     'files_with_distances': files_with_distances  # 新增：包含距离信息的文件列表
                 }
                 similar_groups.append(similar_group)
                 
                 # 标记为已处理
-                processed.add(file1['path'])
+                processed.add(file1['file_path'])
                 for file_info in similar_files:
-                    processed.add(file_info['path'])
+                    processed.add(file_info['file_path'])
         
         # 更新统计信息
         self.phash_groups = similar_groups
@@ -350,10 +361,15 @@ class DuplicateChecker:
         self.log(f"找到 {len(image_files)} 个图片文件")
         
         self.stats['total_images'] = len(image_files)
+        self.stats['processed_images'] = len(image_files)  # Python实现默认处理所有文件
         
-        # 步骤1: 检查完全相同的重复图片
-        self.log("\n步骤1: 检查完全相同的重复图片")
-        exact_duplicates = self.check_exact_duplicates(image_files)
+        # 步骤1: 检查完全相同的重复图片（如果启用）
+        if self.enable_exact_match:
+            self.log("\n步骤1: 检查完全相同的重复图片")
+            exact_duplicates = self.check_exact_duplicates(image_files)
+        else:
+            self.log("\n步骤1: 跳过完全一致检测（已禁用）")
+            exact_duplicates = {}
         
         # 从图片列表中移除完全相同的重复图片（只保留每组的第一个）
         unique_images = []
@@ -376,9 +392,13 @@ class DuplicateChecker:
         if pure_color_images:
             unique_images = [img for img in unique_images if img not in set(pure_color_images)]
         
-        # 步骤3: 检查感知上相似的图片
-        self.log(f"\n步骤3: 检查感知上相似的图片 (共 {len(unique_images)} 个唯一文件)")
-        similar_groups = self.check_perceptual_duplicates(unique_images)
+        # 步骤3: 检查感知上相似的图片（如果启用）
+        if self.enable_perceptual_hash:
+            self.log(f"\n步骤3: 检查感知上相似的图片 (共 {len(unique_images)} 个唯一文件)")
+            similar_groups = self.check_perceptual_duplicates(unique_images)
+        else:
+            self.log(f"\n步骤3: 跳过感知哈希检测（已禁用）")
+            similar_groups = []
         
         # 生成结果
         all_duplicate_groups = []
@@ -421,11 +441,18 @@ class DuplicateChecker:
         end_time = time.time()
         elapsed_time = end_time - start_time
         
-        self.log(f"\n查重完成，耗时: {elapsed_time:.2f}秒")
-        self.log(f"总处理图片数: {self.stats['total_images']}")
-        self.log(f"重复图片组数: {self.stats['duplicate_groups']}")
-        self.log(f"重复图片总数: {self.stats['duplicate_images']}")
-        if self.pure_color_images:
-            self.log(f"纯色图片数: {self.stats['pure_color_images']}")
+        self.log(f"\n查重完成！总耗时: {elapsed_time:.2f} 秒")
+        self.log(f"扫描到 {self.stats['total_images']} 个图片文件，实际处理了 {self.stats['processed_images']} 个文件")
+        self.log(f"发现 {self.stats['duplicate_groups']} 个重复组，包含 {self.stats['duplicate_images']} 个重复图片")
+        
+        # 显示重复原因统计（如果有）
+        if self.stats['reasons']:
+            self.log("\n重复原因统计:")
+            for reason, count in self.stats['reasons'].items():
+                self.log(f"  {reason}: {count} 组")
+        
+        # 显示纯色图片统计（如果有）
+        if self.stats.get('pure_color_images', 0) > 0:
+            self.log(f"\n纯色图片: {self.stats['pure_color_images']} 个")
         
         return self.stats

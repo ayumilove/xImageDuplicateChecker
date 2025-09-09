@@ -90,7 +90,13 @@ DLL_EXPORT char* calculate_phash_rotated_c(const char* image_path, int angle, in
 DLL_EXPORT char* calculate_ahash_rotated_c(const char* image_path, int angle, int hash_size);
 
 /**
- * 释放由库分配的字符串内存
+ * 获取库版本信息
+ * @return 版本信息字符串，需要调用者释放内存
+ */
+DLL_EXPORT char* get_library_version_c();
+
+/**
+ * 释放由C++库分配的字符串内存
  * @param str 要释放的字符串指针
  */
 DLL_EXPORT void free_string_c(char* str);

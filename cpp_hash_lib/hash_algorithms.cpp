@@ -1,4 +1,4 @@
-﻿#include "hash_algorithms.h"
+#include "hash_algorithms.h"
 #include <cstring>
 #include <iostream>
 #include <fstream>
@@ -106,28 +106,46 @@ string binary_to_hex(const string& binary) {
 }
 
 #ifdef _WIN32
-// Windows上处理UTF-8中文路径的文件读取函数
+// Windows上处理UTF-8中文路径的文件读取函数（优化版本）
 vector<char> read_file_unicode(const string& filename) {
     try {
-        // 将UTF-8字符串转换为宽字符
+        // 直接使用Unicode路径，避免双重尝试
         std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
         std::wstring wide_filename = converter.from_bytes(filename);
         
-        // 使用Windows API读取文件
+        // 使用Windows API获取文件大小
         HANDLE hFile = CreateFileW(wide_filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hFile == INVALID_HANDLE_VALUE) {
+            // 如果Unicode路径失败，尝试标准路径作为后备
+            ifstream file(filename, ios::binary | ios::ate);
+            if (!file.is_open()) {
+                return vector<char>();
+            }
+            streamsize size = file.tellg();
+            if (size <= 0) {
+                return vector<char>();
+            }
+            file.seekg(0, ios::beg);
+            vector<char> buffer(size);
+            if (file.read(buffer.data(), size)) {
+                return buffer;
+            }
             return vector<char>();
         }
         
-        DWORD fileSize = GetFileSize(hFile, NULL);
-        if (fileSize == INVALID_FILE_SIZE || fileSize == 0) {
+        LARGE_INTEGER fileSize;
+        if (!GetFileSizeEx(hFile, &fileSize) || fileSize.QuadPart == 0) {
             CloseHandle(hFile);
             return vector<char>();
         }
         
-        vector<char> buffer(fileSize);
+        // 对于大文件，只读取部分数据用于哈希计算
+        const size_t MAX_READ_SIZE = 1024 * 1024; // 1MB
+        size_t actualSize = min((size_t)fileSize.QuadPart, MAX_READ_SIZE);
+        
+        vector<char> buffer(actualSize);
         DWORD bytesRead;
-        if (!ReadFile(hFile, buffer.data(), fileSize, &bytesRead, NULL) || bytesRead != fileSize) {
+        if (!ReadFile(hFile, buffer.data(), (DWORD)actualSize, &bytesRead, NULL) || bytesRead != actualSize) {
             CloseHandle(hFile);
             return vector<char>();
         }
@@ -380,6 +398,12 @@ char* calculate_dhash_c(const char* image_path, int hash_size) {
 #else
     return allocate_string_c("ERROR: OpenCV not available");
 #endif
+}
+
+char* get_library_version_c() {
+    // 版本信息：主版本.次版本.修订版本-构建日期
+    string version = "1.0.0-" + string(__DATE__) + " " + string(__TIME__);
+    return allocate_string_c(version);
 }
 
 char* calculate_phash_c(const char* image_path, int hash_size) {
