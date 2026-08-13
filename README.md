@@ -1,3 +1,5 @@
+
+
 # xImageDuplicateChecker
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -121,7 +123,7 @@ python main.py ./images -r -o ./my_results
 - JPEG (.jpg, .jpeg)
 - PNG (.png)
 - BMP (.bmp)
-- TIFF (.tiff, .tif)
+- GIF (.gif)
 - WebP (.webp)
 
 ## 编译说明
